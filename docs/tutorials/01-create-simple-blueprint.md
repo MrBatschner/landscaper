@@ -1,22 +1,24 @@
-# Develop a simple Blueprint
+# Tutorial 01: Developing a simple Blueprint
 
-This tutorial describes the basic development of blueprints.
-It covers the whole manual workflow from blueprint creation with a component descriptor and the usage in a remote OCI repository.
+This tutorial describes the basics of developing Blueprints. It covers the whole manual workflow from wrtting the Blueprint together with a Component Descriptor and storing them in a remote OCI repository.
 
-As example application a nginx ingress is deployed via its upstream helm chart.
-(ref https://github.com/kubernetes/ingress-nginx/tree/master/charts/ingress-nginx)
+For this tutorial, we are going to use the [NGINX ingress controller](https://github.com/kubernetes/ingress-nginx/tree/master/charts/ingress-nginx) as the example application which will get deployed via its upstream helm chart.
 
-__Prerequisites__:
-- Helm commandline tool (see https://helm.sh/docs/intro/install/)
-- OCI compatible oci registry (e.g. GCR or Harbor)
-- Kubernetes Cluster (better use two different clusters: one for the landscaper and one for the installation)
+## Prerequisites
 
-All example resources can be found in [./resources/ingress-nginx](./resources/ingress-nginx).<br>
-:warning: note that the repository `eu.gcr.io/gardener-project/landscaper/tutorials` is an example repository 
-and has to be replaced with your own registry if you want to upload your own artifacts.
-Although the artifacts are public readable so they can be used out-of-the-box without a need for your own oci registry.
+For this tutorial, you will need:
 
-Structure:
+- the Helm (v3) commandline tool (see https://helm.sh/docs/intro/install/)
+- an OCI compatible registry (e.g. GCR or Harbor)
+- a Kubernetes Cluster (better use two different clusters: one which Landscaper runs in and one that NGINX gets installed into)
+
+All example resources can be found in the folder [./resources/ingress-nginx](./resources/ingress-nginx) of this repository.
+
+:warning: Note that the repository `eu.gcr.io/gardener-project/landscaper/tutorials` that is used throughout this tutorial is an example repository and has to be replaced with the path to your own registry if you want to upload your own artifacts.
+If you do not have your own OCI registry, you can of course reuse the artifacts that we provided at `eu.gcr.io/gardener-project/landscaper/tutorials` which are publicly readable.
+
+## Structure
+
 - [Resources](#resources)
     - [Prepare nginx helm chart](#prepare-nginx-helm-chart)
     - [Define Component Descriptor](#define-the-component-descriptor)
@@ -27,22 +29,21 @@ Structure:
 - [Summary](#summary)
 - [Up next](#up-next)
 
-### Resources
+## Step 1. Prepare the NGINX helm chart
 
-#### Prepare nginx helm chart
-As the current helm deployer only supports oci charts, we have to convert and upload the open source helm chart as oci artifact.
+The current helm deployer only supports helm charts stored in an OCI registry. We therefore have to convert and upload the open source helm chart as an OCI artifact to our registry.
 
 ```shell script
-# add open source helm registry
+# add open source and nginx helm registries
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm repo add stable https://kubernetes-charts.storage.googleapis.com/
+helm repo add stable https://charts.helm.sh/stable
 helm repo update
 
-# download the helm artifact locally
+# download the nginx ingress helm chart and extract it to /tmp/nginx-ingress
 helm pull ingress-nginx/ingress-nginx --untar --destination /tmp
 
-# upload the oci artifact to a oci registry
-export OCI_REGISTRY="eu.gcr.io" # replace with your own oci registry
+# upload the helm chart to an OCI registry
+export OCI_REGISTRY="eu.gcr.io" # <-- replace this with the URL of your own OCI registry
 export CHART_REF="$OCI_REGISTRY/mychart/reference:my-version" # e.g. eu.gcr.io.gardener-project/landscaper/tutorials/charts/ingress-nginx:v0.1.0
 export HELM_EXPERIMENTAL_OCI=1
 helm registry login -u myuser $OCI_REGISTRY
@@ -50,12 +51,11 @@ helm chart save /tmp/ingress-nginx $CHART_REF
 helm chart push $CHART_REF
 ```
 
-#### Define the Component Descriptor
+## Step 2: Define the Component Descriptor
 
-A component descriptor contains all resources that are used by the application installation.
-Resources are in this example the ingress-nginx helm chart but could also be `oci images` or even `node modules`.
+A Component Descriptor contains references and locations to all _resources_ that are used by Landscaper to deploy and install an application. In this example, the only kind of _resources_ is a `helm` chart (that of the nginx-ingress controller that we uploaded to an OCI registry in the previous step) but it could also be `oci images` or even `node modules`.
 
-For more information about the component descriptor and the usage of the different fields see the [component descriptor docs](https://github.com/gardener/component-spec).
+For more information about the component descriptor and the usage of the different fields, refer to the [component descriptor documentation](https://github.com/gardener/component-spec).
 
 ```yaml
 meta:
@@ -79,39 +79,60 @@ component:
       imageReference: eu.gcr.io.gardener-project/landscaper/tutorials/charts/ingress-nginx:v0.1.0
 ```
 
-#### Create Blueprint
+## Step 3: Create a Blueprint
 
-Blueprints describe the imports that are used to template the deployitems and exports that result from the executed deploy items.
+Blueprints describe how _DeployItems_ are created by taking the values of `imports` and applying them to templates inside `deployExecutions`. Additionally, they specify which pieces of data appear as `exports` from the executed _DeployItems_.
 
-For detailed documentation about the blueprint and see [docs/usage/Blueprints.md](/docs/usage/Blueprints.md).
+For detailed documentation about Blueprints, look at [docs/usage/Blueprints.md](/docs/usage/Blueprints.md).
 
-The imports are describes as list of import definitions.
-A import is defined by a unique name and a type definition.
-The type definition is either a jsonschema definition or a `targetType`.
+### Imports and Exports declaration
 
-A jsonschema imports the data from a dataobject with a given jsonschema.<br>
-A target with a specific type is imported if a targetType is defined.
+The `imports` are described as a list of import declarations. Each _import_ is declared by a unique name and a type which is either a JSON schema or a `targetType`.
+
+<details>
+
+Imports with the type `schema` import their data from a data object with a given JSON schema. Imports with the type `targetType` are imported from the specified _Target_.
 
 ```yaml
-# jsonschema
+# import with type JSON schema
+
 - name: myimport
   schema: # valid jsonschema
     type: string | object | number | ...
 ```
 
 ```yaml
-# targetType
+# import from/into targetType
+
 - name: myimport
   targetType: "" # e.g. landscaper.gardener.cloud/kubernetes-cluster
 ```
 
-For the example nginx application, only a kubernetes cluster target is imported.
-The target will be used as the target cluster for the helm chart.
+</details>
 
-As a simple export, the ingress class of the ingress is exported as type string.
+Our _nginx-ingress_ cotroller in this tutorial only needs to import a target Kubernetes cluster. It will be used as the target cluster the Helm chart gets deployed to. Therefore, the following YAML snippet _declares_ the import:
 
-DeployItems are templated in the `deployExecutions` section by specifying different templating steps.
-Each template step has to output a list of deploy item templates of the following form.
+```yaml
+imports:
+- name: cluster
+  targetType: landscaper.gardener.cloud/kubernetes-cluster
+```
+
+The declaration of `exports` works just like declaring `imports`. Again, each _export_ is declared as a list-item with a unique name and a data type (again, JSON schema or `targetType`).
+
+To be able to use the ingress in a later Blueprint or Installation, this Blueprint will export the name of the ingress class as a simple string. With this piece of YAML, the export is _declared_:
+
+```yaml
+exports:
+- name: ingressClass
+  schema: # here comes a valid jsonschema
+    type: string
+```
+
+### DeployItems
+
+_DeployItems_ are created from templates as given in the `deployExecutions` section. Each element specifies a templating step which results in one or multiple _DeployItems_ (returned in  a list).
+
 ```yaml
 - name: "unique name of the deployitem"
   type: landscaper.gardener.cloud/helm | landscaper.gardener.cloud/container | ... # deployer identifier
@@ -124,13 +145,13 @@ Each template step has to output a list of deploy item templates of the followin
     ...
 ```
 
-Currently `GoTemplate` and `Spiff` are supported templating engines.
-For detailed information about the template executors see [here](/docs/usage/TemplateExecutors.md).
+Currently [GoTemplate](https://golang.org/pkg/text/template/) and [Spiff](https://github.com/mandelsoft/spiff) are supported templating engines. For detailed information about the template executors, [read this](/docs/usage/TemplateExecutors.md).
 
-The landscaper offers access to the imports and the component descriptor in the following structure.
+While processing the templates, Landscaper offers access to the `imports` and the fields of the component descriptor through the following structure:
+
 ```yaml
 imports:
-  <import name>: <data value> or <target cr>
+  <import name>: <data value> or <target custom resource>
 cd:
  component:
    resources: ...

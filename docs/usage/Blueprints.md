@@ -1,11 +1,11 @@
-# Blueprint
+# Blueprints
 
-Blueprints describe the steps that are necessary to deploy a component/application.<br>
-These steps can consist of deploy items or other blueprints which are assembled using installation templates.
+Blueprints describe the steps that are necessary to deploy a component/application. These steps can consist of deploy items or other blueprints which are assembled using installation templates.
 
-A Blueprint is a filesystem that contains the blueprint definition at `/blueprint.yaml`.
-Other files can be added optionally.
-Every Blueprint must have a corresponding component descriptor that is used to reference tht blueprint and define the dependencies of the blueprint.
+A Blueprint is a filesystem that contains the blueprint definition at `/blueprint.yaml`. Other additional files can be added optionally.
+
+Every Blueprint must have a corresponding component descriptor that is used to reference the Blueprint and define its the dependencies.
+
 ```
 my-blueprint
 ├── data
@@ -23,17 +23,19 @@ my-blueprint
     - [Local](#local)
     - [OCI](#oci)
 
-## blueprint.yaml Definition
+## blueprint.yaml
 
-A blueprint is defined by a yaml definition that inside the blueprints filesystem.
-The blueprint is a versioned configuration file that consists of 
+A Blueprint is a versioned configuration file that consists of 
+
 - imports
 - exports
 - deployExecutions
 - exportExecution
 - subinstallation
 
-See [.schemas/landscaper_Blueprint.json](../../.schemas/landscaper_Blueprint.json) for the automatically generated jsonschema definition.
+It is defined by a YAML definition that sits on the top level inside the blueprints filesystem.
+
+The following snippet shows the structure of a `blueprint.yaml` file. Refer to [.schemas/landscaper_Blueprint.json](../../.schemas/landscaper_Blueprint.json) for the automatically generated jsonschema definition.
 
 ```yaml
 apiVersion: landscaper.gardener.cloud/v1alpha1
