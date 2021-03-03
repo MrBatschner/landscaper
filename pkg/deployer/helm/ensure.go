@@ -116,11 +116,11 @@ func (h *Helm) ApplyFiles(ctx context.Context, files map[string]string, exports 
 		return nil
 	}
 
-	return h.CheckResourcesHealth(ctx)
+	return h.CheckResourcesHealth(ctx, targetClient)
 }
 
 // CheckResourcesHealth checks if the managed resources are Ready/Healthy.
-func (h *Helm) CheckResourcesHealth(ctx context.Context) error {
+func (h *Helm) CheckResourcesHealth(ctx context.Context, client client.Client) error {
 	var (
 		currOp = "CheckResourcesHealthHelm"
 	)
@@ -136,7 +136,7 @@ func (h *Helm) CheckResourcesHealth(ctx context.Context) error {
 	}
 
 	timeout, _ := time.ParseDuration(h.ProviderConfiguration.HealthChecks.Timeout)
-	if err := health.WaitForObjectsHealthy(ctx, timeout, h.log, h.kubeClient, objects); err != nil {
+	if err := health.WaitForObjectsHealthy(ctx, timeout, h.log, client, objects); err != nil {
 		return lsv1alpha1helper.NewWrappedError(err,
 			currOp, "CheckResourcesReadiness", err.Error())
 	}

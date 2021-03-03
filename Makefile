@@ -45,7 +45,7 @@ test:
 
 .PHONY: integration-test
 integration-test:
-	@go test -mod=vendor $(REPO_ROOT)/test/integration --v -ginkgo.v -ginkgo.progress --kubeconfig $(KUBECONFIG) --ls-version $(EFFECTIVE_VERSION) --registry-config=$(REGISTRY_CONFIG)
+	@go test -timeout=0 -mod=vendor $(REPO_ROOT)/test/integration --v -ginkgo.v -ginkgo.progress --kubeconfig $(KUBECONFIG) --ls-version $(EFFECTIVE_VERSION) --registry-config=$(REGISTRY_CONFIG)
 
 .PHONY: verify
 verify: check

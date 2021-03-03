@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	lsv1alpha1 "github.com/gardener/landscaper/apis/core/v1alpha1"
@@ -82,11 +83,11 @@ func (m *Manifest) Reconcile(ctx context.Context) error {
 		return nil
 	}
 
-	return m.CheckResourcesHealth(ctx)
+	return m.CheckResourcesHealth(ctx, targetClient)
 }
 
 // CheckResourcesHealth checks if the managed resources are Ready/Healthy.
-func (m *Manifest) CheckResourcesHealth(ctx context.Context) error {
+func (m *Manifest) CheckResourcesHealth(ctx context.Context, client client.Client) error {
 	currOp := "CheckResourcesHealthManifests"
 
 	if len(m.ProviderStatus.ManagedResources) == 0 {
@@ -105,7 +106,7 @@ func (m *Manifest) CheckResourcesHealth(ctx context.Context) error {
 	}
 
 	timeout, _ := time.ParseDuration(m.ProviderConfiguration.HealthChecks.Timeout)
-	if err := health.WaitForObjectsHealthy(ctx, timeout, m.log, m.kubeClient, objects); err != nil {
+	if err := health.WaitForObjectsHealthy(ctx, timeout, m.log, client, objects); err != nil {
 		return lsv1alpha1helper.NewWrappedError(err,
 			currOp, "CheckResourcesReadiness", err.Error())
 	}
